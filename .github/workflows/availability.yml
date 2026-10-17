@@ -1,0 +1,28 @@
+name: SAURO_OS availability
+on:
+  schedule:
+    - cron: '3-53/10 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: sauro-availability
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Check public application liveness
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            if body=$(curl --fail --silent --show-error --location --max-time 75 https://sauro-os.onrender.com/api/sauro/ping) &&
+              printf '%s' "$body" | python3 -c 'import json,sys; result=json.load(sys.stdin); assert result.get("status")=="ok" and result.get("service")=="sauro-os", "Unexpected liveness response"'; then
+              echo 'SAURO_OS liveness check passed.'
+              exit 0
+            fi
+            if [ "$attempt" = 1 ]; then sleep 5; fi
+          done
+          echo 'SAURO_OS did not return a valid liveness response.' >&2
+          exit 1
